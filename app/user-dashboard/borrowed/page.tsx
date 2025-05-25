@@ -26,7 +26,7 @@ export default function BorrowedBooks() {
     const fetchBorrowedBooks = async () => {
       try {
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/books/borrowed`,
+          `${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`,
           {
             headers: { Authorization: `Bearer ${authToken}` }
           }

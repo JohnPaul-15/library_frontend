@@ -27,14 +27,24 @@ export default function UserDashboard() {
   const [borrowedBooks, setBorrowedBooks] = useState<BorrowedBook[]>([]);
   const [availableBooks, setAvailableBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [totalBooks, setTotalBooks] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
     const fetchBooks = async () => {
       try {
+        // Fetch total books
+        const totalResponse = await axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/books`,
+          {
+            headers: { Authorization: `Bearer ${authToken}` }
+          }
+        );
+        setTotalBooks(totalResponse.data.data?.length || 0);
+
         // Fetch borrowed books
         const borrowedResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/books/borrowed`,
+          `${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`,
           {
             headers: { Authorization: `Bearer ${authToken}` }
           }
@@ -43,7 +53,7 @@ export default function UserDashboard() {
 
         // Fetch available books
         const availableResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/books/available`,
+          `${process.env.NEXT_PUBLIC_API_URL}/user/available`,
           {
             headers: { Authorization: `Bearer ${authToken}` }
           }
@@ -93,7 +103,7 @@ export default function UserDashboard() {
             <div>
               <p className="text-sm text-purple-100">Total Books</p>
               <h2 className="text-3xl font-bold text-white mt-1">
-                {availableBooks.length + borrowedBooks.length}
+                {totalBooks}
               </h2>
             </div>
             <div className="p-3 bg-purple-400 bg-opacity-30 rounded-full">
