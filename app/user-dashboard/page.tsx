@@ -29,68 +29,72 @@ export default function UserDashboard() {
   const [availableBooks, setAvailableBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalBooks, setTotalBooks] = useState(0);
+  const [borrowedBooksCount, setBorrowedBooksCount] = useState(0);
+  const [availableBooksCount, setAvailableBooksCount] = useState(0);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchBooks = async () => {
-      try {
-        // Fetch total books
-        const totalResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/books`,
-          {
-            headers: { 
-              Authorization: `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const [booksResponse, borrowedResponse] = await Promise.all([
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/books`, {
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Accept': 'application/json'
           }
-        );
-        setTotalBooks(totalResponse.data.data?.length || 0);
+        }),
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`, {
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Accept': 'application/json'
+          }
+        })
+      ]);
 
-        // Fetch borrowed books
-        const borrowedResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`,
-          {
-            headers: { 
-              Authorization: `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
-          }
-        );
-        setBorrowedBooks(borrowedResponse.data.data || []);
+      const totalBooks = booksResponse.data.data.length;
+      const borrowedBooks = borrowedResponse.data.data.length;
+      const availableBooks = totalBooks - borrowedBooks;
 
-        // Fetch available books
-        const availableResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/available-books`,
-          {
-            headers: { 
-              Authorization: `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
+      setTotalBooks(totalBooks);
+      setBorrowedBooksCount(borrowedBooks);
+      setAvailableBooksCount(availableBooks);
+
+      // Fetch borrowed books
+      const borrowedBooksData = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`,
+        {
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
-        );
-        setAvailableBooks(availableResponse.data.data || []);
-      } catch (error) {
-        console.error('Error fetching books:', error);
-        if (axios.isAxiosError(error)) {
-          if (error.response?.status === 401) {
-            toast.error('Session expired. Please login again.');
-            router.replace('/auth');
-          } else {
-            toast.error(error.response?.data?.message || 'Failed to fetch books');
-          }
-        } else {
-          toast.error('Failed to fetch books');
         }
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      );
+      setBorrowedBooks(borrowedBooksData.data.data || []);
 
+      // Fetch available books
+      const availableBooksData = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/available-books`,
+        {
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
+      );
+      setAvailableBooks(availableBooksData.data.data || []);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (authToken) {
-      fetchBooks();
+      fetchDashboardData();
     }
   }, [authToken]);
 
@@ -129,7 +133,7 @@ export default function UserDashboard() {
             <div>
               <p className="text-sm text-blue-100">Currently Borrowed</p>
               <h2 className="text-3xl font-bold text-white mt-1">
-                {borrowedBooks.length}
+                {borrowedBooksCount}
               </h2>
             </div>
             <div className="p-3 bg-blue-400 bg-opacity-30 rounded-full">

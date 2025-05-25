@@ -48,34 +48,77 @@ export default function BooksPage() {
 
   const handleBorrow = async (bookId: number) => {
     try {
-      const result = await Swal.fire({
-        title: 'Confirm Borrow',
-        text: 'Are you sure you want to borrow this book?',
-        icon: 'question',
+      const { value: formValues } = await Swal.fire({
+        title: 'Borrow Book',
+        html:
+          '<div class="mb-4">' +
+          '<label class="block text-sm font-medium text-gray-700 mb-1">Number of Copies</label>' +
+          '<input id="copies" type="number" min="1" class="swal2-input" placeholder="Enter number of copies">' +
+          '</div>' +
+          '<div>' +
+          '<label class="block text-sm font-medium text-gray-700 mb-1">Return Date</label>' +
+          '<input id="return-date" type="date" class="swal2-input" placeholder="Select return date">' +
+          '</div>',
+        focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: 'Yes, borrow it',
-        cancelButtonText: 'No, cancel',
+        confirmButtonText: 'Borrow',
+        cancelButtonText: 'Cancel',
         confirmButtonColor: 'var(--primary)',
         cancelButtonColor: 'var(--danger)',
+        preConfirm: () => {
+          const copies = document.getElementById('copies') as HTMLInputElement;
+          const returnDate = document.getElementById('return-date') as HTMLInputElement;
+          
+          if (!copies.value || !returnDate.value) {
+            Swal.showValidationMessage('Please fill in all fields');
+            return false;
+          }
+
+          const numCopies = parseInt(copies.value);
+          if (numCopies < 1) {
+            Swal.showValidationMessage('Number of copies must be at least 1');
+            return false;
+          }
+
+          const selectedDate = new Date(returnDate.value);
+          const today = new Date();
+          if (selectedDate <= today) {
+            Swal.showValidationMessage('Return date must be in the future');
+            return false;
+          }
+
+          return {
+            copies: numCopies,
+            return_date: returnDate.value
+          };
+        }
       });
 
-      if (result.isConfirmed) {
+      if (formValues) {
         const response = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL}/books/${bookId}/borrow`,
-          {},
+          formValues,
           {
-            headers: { Authorization: `Bearer ${authToken}` }
+            headers: { 
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
           }
         );
 
         if (response.data.success) {
-          toast.success('Book borrowed successfully!');
+          toast.success(response.data.message);
           fetchBooks(); // Refresh the book list
         }
       }
     } catch (error: any) {
       console.error('Error borrowing book:', error);
-      toast.error(error.response?.data?.message || 'Failed to borrow book');
+      if (error.response?.status === 422) {
+        toast.error(error.response.data.message || 'Cannot borrow this book');
+      } else {
+        toast.error('Failed to borrow book');
+      }
     }
   };
 
@@ -97,7 +140,11 @@ export default function BooksPage() {
           `${process.env.NEXT_PUBLIC_API_URL}/books/${bookId}/return`,
           {},
           {
-            headers: { Authorization: `Bearer ${authToken}` }
+            headers: { 
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
           }
         );
 
@@ -108,7 +155,11 @@ export default function BooksPage() {
       }
     } catch (error: any) {
       console.error('Error returning book:', error);
-      toast.error(error.response?.data?.message || 'Failed to return book');
+      if (error.response?.status === 422) {
+        toast.error(error.response.data.message || 'Cannot return this book');
+      } else {
+        toast.error('Failed to return book');
+      }
     }
   };
 
