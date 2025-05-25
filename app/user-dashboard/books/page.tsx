@@ -105,7 +105,7 @@ export default function BooksPage() {
         cancelButtonColor: '#6B7280',
         buttonsStyling: true,
         customClass: {
-          cancelButton: 'swal2-cancel-button bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors',
+          cancelButton: 'swal2-cancel-button bg-gray-500 hover:bg-gray-600 text-white border-none',
           confirmButton: 'swal2-confirm-button'
         },
         preConfirm: () => {
