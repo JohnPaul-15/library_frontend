@@ -5,6 +5,7 @@ import { useApp } from "@/context/AppProvider";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import Loading from '@/components/Loading';
 
 interface Book {
   id: number;
@@ -37,7 +38,11 @@ export default function UserDashboard() {
         const totalResponse = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/books`,
           {
-            headers: { Authorization: `Bearer ${authToken}` }
+            headers: { 
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
           }
         );
         setTotalBooks(totalResponse.data.data?.length || 0);
@@ -46,16 +51,24 @@ export default function UserDashboard() {
         const borrowedResponse = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`,
           {
-            headers: { Authorization: `Bearer ${authToken}` }
+            headers: { 
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
           }
         );
         setBorrowedBooks(borrowedResponse.data.data || []);
 
         // Fetch available books
         const availableResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/user/available`,
+          `${process.env.NEXT_PUBLIC_API_URL}/available-books`,
           {
-            headers: { Authorization: `Bearer ${authToken}` }
+            headers: { 
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
           }
         );
         setAvailableBooks(availableResponse.data.data || []);
@@ -83,10 +96,7 @@ export default function UserDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
-        <p className="text-[var(--text-muted)]">Loading dashboard...</p>
-      </div>
+      <Loading />
     );
   }
 

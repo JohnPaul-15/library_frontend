@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
+import Loading from '@/components/Loading';
 
 interface User {
   id?: number;
@@ -284,14 +285,7 @@ export default function UsersManagement() {
 
   // Show loading state while initializing
   if (isLoading || isPageLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
-        <p className="text-[var(--text-muted)]">
-          {isLoading ? 'Loading application...' : 'Verifying access...'}
-        </p>
-      </div>
-    );
+    return <Loading />;
   }
 
   // If we get here, we should have admin access

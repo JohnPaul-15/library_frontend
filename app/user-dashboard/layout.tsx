@@ -4,6 +4,7 @@ import { useApp } from "@/context/AppProvider";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Loading from '@/components/Loading';
 
 export default function UserDashboardLayout({
   children,
@@ -31,13 +32,8 @@ export default function UserDashboardLayout({
     router.replace('/auth');
   };
 
-  if (isLoading || isPageLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
-        <p className="mt-4 text-[var(--text-muted)]">Loading dashboard...</p>
-      </div>
-    );
+  if (isLoading) {
+    return <Loading />;
   }
 
   return (

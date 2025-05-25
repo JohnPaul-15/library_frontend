@@ -5,6 +5,7 @@ import { useApp } from "@/context/AppProvider";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import Loading from '@/components/Loading';
 
 interface BorrowedBook {
   id: number;
@@ -28,7 +29,11 @@ export default function BorrowedBooks() {
         const response = await axios.get(
           `${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`,
           {
-            headers: { Authorization: `Bearer ${authToken}` }
+            headers: { 
+              Authorization: `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
           }
         );
         setBorrowedBooks(response.data.data || []);
@@ -55,12 +60,7 @@ export default function BorrowedBooks() {
   }, [authToken, router]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
-        <p className="text-[var(--text-muted)]">Loading borrowed books...</p>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

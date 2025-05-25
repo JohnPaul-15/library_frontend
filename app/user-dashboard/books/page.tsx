@@ -5,6 +5,7 @@ import { useApp } from "@/context/AppProvider";
 import axios from "axios";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
+import Loading from '@/components/Loading';
 
 interface Book {
   id: number;
@@ -124,12 +125,7 @@ export default function BooksPage() {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
-        <p className="text-[var(--text-muted)]">Loading books...</p>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

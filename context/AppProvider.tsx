@@ -6,6 +6,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation" ;
+import Loading from '@/components/Loading';
 
 interface User {
   id: number;
@@ -58,11 +59,20 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   // Helper function to check admin access
   const checkAdminAccess = () => {
-    const hasAccess = !!(user && authToken && user.role === 'admin');
+    if (!user || !authToken) {
+      console.log('Admin access check failed: Missing user or token', {
+        hasUser: !!user,
+        hasToken: !!authToken,
+        userRole: user?.role
+      });
+      return false;
+    }
+
+    const hasAccess = user.role === 'admin';
     console.log('Checking admin access:', {
       hasUser: !!user,
       hasToken: !!authToken,
-      userRole: user?.role,
+      userRole: user.role,
       hasAccess
     });
     return hasAccess;
@@ -149,7 +159,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         setUser(userData);
         setIsLoading(false);
 
-        // Only redirect if we're on the auth page
+        // Check current path and redirect if needed
         const currentPath = window.location.pathname;
         if (currentPath === '/auth') {
           // Redirect based on role after successful login/registration
@@ -160,6 +170,15 @@ export const AppProvider = ({ children }: AppProviderProps) => {
             console.log('Regular user detected, redirecting to user dashboard');
             router.replace('/user-dashboard');
           }
+        } else if (currentPath.startsWith('/dashboard') && userData.role !== 'admin') {
+          // If non-admin user tries to access admin dashboard, redirect to user dashboard
+          console.log('Non-admin user accessing admin dashboard, redirecting to user dashboard');
+          toast.error('Access denied. Admin privileges required.');
+          router.replace('/user-dashboard');
+        } else if (currentPath.startsWith('/user-dashboard') && userData.role === 'admin') {
+          // If admin user tries to access user dashboard, redirect to admin dashboard
+          console.log('Admin user accessing user dashboard, redirecting to admin dashboard');
+          router.replace('/dashboard');
         }
       } else {
         console.error('Profile fetch returned invalid data:', {
@@ -406,13 +425,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   // Prevent rendering children while loading
   if (isLoading) {
-    console.log('AppProvider is loading, showing loader');
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
-        <p className="mt-4 text-[var(--text-muted)]">Loading application...</p>
-      </div>
-    );
+    return <Loading />;
   }
 
   console.log('AppProvider rendering children');

@@ -61,17 +61,26 @@ export default function Dashboard() {
   //page load when authToken is available 
   useEffect(() => {
     if (!authToken && !isLoading) {
+      console.log('No auth token, redirecting to auth');
       router.push('/auth');
       return;
     }
 
     if (user && user.role !== 'admin') {
+      console.log('Non-admin user detected, redirecting to user dashboard', {
+        userRole: user.role,
+        userId: user.id
+      });
       toast.error('Access denied. Admin privileges required.');
       router.push('/user-dashboard');
       return;
     }
 
-    if (authToken) {
+    if (authToken && user?.role === 'admin') {
+      console.log('Admin user detected, fetching dashboard data', {
+        userId: user.id,
+        userRole: user.role
+      });
       fetchAllBooks();
       fetchDashboardStats();
     }
@@ -81,10 +90,10 @@ export default function Dashboard() {
     // TODO: Replace with actual API call
     // This is mock data for demonstration
     setStats({
-      totalBooks: 1250,
-      totalUsers: 450,
-      availableBooks: 980,
-      borrowedBooks: 270,
+      totalBooks: 0,
+      totalUsers: 0,
+      availableBooks: 0,
+      borrowedBooks: 0,
       lastUpdated: new Date().toLocaleTimeString()
     });
   }, []);
@@ -250,14 +259,33 @@ export default function Dashboard() {
     const url = `${process.env.NEXT_PUBLIC_API_URL}/dashboard/stats`;
     const requestId = Math.random().toString(36).substring(2, 9);
     
-    console.log(`[${requestId}] Starting dashboard stats request`);
+    console.log(`[${requestId}] Starting dashboard stats request`, {
+      hasAuthToken: !!authToken,
+      userRole: user?.role,
+      isAdmin: user?.role === 'admin'
+    });
+
+    if (!authToken) {
+      console.log(`[${requestId}] No auth token available`);
+      router.push('/auth');
+      return;
+    }
+
+    if (!user || user.role !== 'admin') {
+      console.log(`[${requestId}] Non-admin user attempting to access dashboard stats`, {
+        userRole: user?.role,
+        userId: user?.id
+      });
+      toast.error('Access denied. Admin privileges required.');
+      router.push('/user-dashboard');
+      return;
+    }
 
     try {
       setIsRefreshing(true);
     
-      // Create abort controller for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased timeout to 30s
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const response = await fetch(url, {
         headers: {
@@ -272,18 +300,25 @@ export default function Dashboard() {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`[${requestId}] API error:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+
         if (response.status === 403) {
-          throw new Error('Admin privileges required');
+          toast.error('Admin privileges required');
+          router.push('/user-dashboard');
+          return;
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
-      // Parse response
       const data = await response.json();
     
-      // Validate response structure
       if (!data || typeof data !== 'object' || !data.success || !data.data) {
-         console.error(`[${requestId}] Invalid response structure:`, data);
+        console.error(`[${requestId}] Invalid response structure:`, data);
         throw new Error(data?.message || 'Invalid response format from server');
       }
 
@@ -294,40 +329,28 @@ export default function Dashboard() {
         borrowedBooks: Number(data.data?.borrowedBooks ?? 0),
         lastUpdated: new Date().toLocaleTimeString()
       });
-       console.log(`[${requestId}] Stats updated successfully`);
+      
+      console.log(`[${requestId}] Stats updated successfully`);
 
     } catch (error: any) {
-      let errorMessage = 'Failed to load dashboard stats';
-       console.error(`[${requestId}] Caught error:`, error);
-      
+      console.error(`[${requestId}] Error fetching dashboard stats:`, {
+        error,
+        message: error.message,
+        status: error.status,
+        userRole: user?.role
+      });
+
       if (error.name === 'AbortError') {
-        errorMessage = 'Request timed out';
-        toast.error(errorMessage);
-      } else if (error.status === 401) {
-        errorMessage = 'Session expired. Please login again.';
-         toast.error(errorMessage);
-        router.push('/auth');
-      } else if (error.status === 403) {
-        errorMessage = 'Admin privileges required';
-         toast.error(errorMessage);
-        router.push('/dashboard');
-      } else if (error.errorDetails) {
-         // Handle structured error details from backend
-         errorMessage = error.errorDetails.message || errorMessage;
-         toast.error(errorMessage);
-          console.error(`[${requestId}] Backend error details:`, error.errorDetails);
+        toast.error('Request timed out');
+      } else if (error.message.includes('Admin privileges required')) {
+        toast.error('Admin privileges required');
+        router.push('/user-dashboard');
       } else {
-        // Generic error handling
-        errorMessage = error.message || errorMessage;
-        toast.error(errorMessage);
-         console.error(`[${requestId}] Generic error:`, error);
+        toast.error(error.message || 'Failed to load dashboard stats');
       }
-
-      console.error(`[${requestId}] Final error message: ${errorMessage}`);
-
     } finally {
       setIsRefreshing(false);
-       console.log(`[${requestId}] Dashboard stats request finished`);
+      console.log(`[${requestId}] Dashboard stats request finished`);
     }
   };
 

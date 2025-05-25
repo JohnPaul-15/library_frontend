@@ -1,23 +1,23 @@
-const Loader = () => {
+import { BookOpen } from 'lucide-react';
+import Loading from '@/components/Loading';
+
+export default function Loader() {
   return (
-    <div 
-      id="loader" 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-white bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75"
-      aria-live="assertive"
-    >
-      <div className="flex flex-col items-center">
-        <div 
-          className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-500 border-t-transparent"
-          role="status"
-        >
-          <span className="sr-only">Loading...</span>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-full max-w-md p-8 text-center">
+        <div className="mb-8">
+          <div className="w-24 h-24 mx-auto mb-6 bg-background-lighter rounded-full flex items-center justify-center animate-pulse">
+            <BookOpen className="w-12 h-12 text-accent-orange opacity-20" />
+          </div>
+          <h1 className="text-2xl font-bold text-accent-orange mb-4">Loading...</h1>
+          <p className="text-gray-400">
+            Please wait while we load your content.
+          </p>
         </div>
-        <p className="mt-4 text-sm font-medium text-gray-600 dark:text-gray-300">
-          Loading...
-        </p>
+
+        {/* Loading Animation */}
+        <Loading fullScreen={false} />
       </div>
     </div>
   );
-};
-
-export default Loader;
+}
