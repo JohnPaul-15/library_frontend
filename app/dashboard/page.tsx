@@ -38,7 +38,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
-  const { isLoading, authToken } = useApp();
+  const { isLoading, authToken, user } = useApp();
   const router = useRouter();
   const [books, setBooks] = useState<BookType[]>([]); // State to hold the list of books
   const [isEdit, setIsEdit] = useState(false);
@@ -62,14 +62,20 @@ export default function Dashboard() {
   useEffect(() => {
     if (!authToken && !isLoading) {
       router.push('/auth');
-      return; // Exit early if no auth token
+      return;
     }
 
-    if (authToken) { // Only fetch if we have a token
+    if (user && user.role !== 'admin') {
+      toast.error('Access denied. Admin privileges required.');
+      router.push('/user-dashboard');
+      return;
+    }
+
+    if (authToken) {
       fetchAllBooks();
       fetchDashboardStats();
     }
-  }, [authToken, isLoading, router]);
+  }, [authToken, isLoading, user, router]);
 
   useEffect(() => {
     // TODO: Replace with actual API call
@@ -251,7 +257,7 @@ export default function Dashboard() {
     
       // Create abort controller for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased timeout to 30s
 
       const response = await fetch(url, {
         headers: {
@@ -265,35 +271,11 @@ export default function Dashboard() {
 
       clearTimeout(timeoutId);
 
-      // First check if response is OK
       if (!response.ok) {
-        // Try to get error details from response
-        let errorDetails: { message?: string; status?: number; error?: any; debug_info?: any; responseText?: string } = {};
-        let responseText = 'Empty response';
-        try {
-           responseText = await response.text();
-           console.log(`[${requestId}] Raw error response text: ${responseText}`);
-          const errorData = JSON.parse(responseText);
-          errorDetails = {
-            message: errorData.message || `HTTP error! status: ${response.status}`,
-            error: errorData.error,
-            status: response.status,
-            debug_info: errorData.debug_info
-          };
-          console.error(`[${requestId}] Parsed error details:`, errorDetails);
-        } catch (parseError: any) {
-           console.warn(`[${requestId}] Failed to parse error response as JSON`, parseError);
-          errorDetails = {
-            message: `HTTP error! status: ${response.status}`,
-            status: response.status,
-            responseText: responseText
-          };
+        if (response.status === 403) {
+          throw new Error('Admin privileges required');
         }
-        
-        const error = new Error(errorDetails.message || `HTTP error! status: ${response.status}`);
-        (error as any).status = errorDetails.status;
-        (error as any).errorDetails = errorDetails;
-        throw error;
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       // Parse response

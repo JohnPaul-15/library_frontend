@@ -147,14 +147,19 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         });
         
         setUser(userData);
+        setIsLoading(false);
 
-        // Redirect based on role after successful login/registration
-        if (userData.role === 'admin') {
-          console.log('Admin user detected, redirecting to dashboard');
-          router.replace('/dashboard');
-        } else {
-          console.log('Regular user detected, redirecting to user dashboard');
-          router.replace('/user-dashboard');
+        // Only redirect if we're on the auth page
+        const currentPath = window.location.pathname;
+        if (currentPath === '/auth') {
+          // Redirect based on role after successful login/registration
+          if (userData.role === 'admin') {
+            console.log('Admin user detected, redirecting to admin dashboard');
+            router.replace('/dashboard');
+          } else {
+            console.log('Regular user detected, redirecting to user dashboard');
+            router.replace('/user-dashboard');
+          }
         }
       } else {
         console.error('Profile fetch returned invalid data:', {
@@ -181,7 +186,6 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         isAdmin: user?.role === 'admin'
       });
       setIsProfileLoading(false);
-        setIsLoading(false);
     }
   };
 
@@ -210,25 +214,25 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         status: response.status,
         statusText: response.statusText,
         headers: response.headers,
-        data: {
-          ...response.data,
-          token: response.data.token ? {
-            length: response.data.token.length,
-            preview: response.data.token.substring(0, 20) + '...',
-            format: response.data.token.includes('.') ? 'JWT-like' : 'Non-JWT',
-            // Log the actual token for debugging (remove in production)
-            value: response.data.token
-          } : null
-        }
+        data: response.data
       });
 
+      // Check if the response indicates an error
+      if (response.data.status === false) {
+        const errorMessage = response.data.message || 'Login failed';
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
+      }
+
       if (!response.data.token) {
+        const errorMessage = 'Login response missing authentication token';
         console.error('Login response missing token:', {
           responseData: response.data,
           status: response.status,
           statusText: response.statusText
         });
-        throw new Error('Login response missing authentication token');
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
       }
 
       const token = response.data.token;
@@ -238,9 +242,7 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         length: token.length,
         preview: token.substring(0, 20) + '...',
         containsDots: token.includes('.'),
-        format: token.includes('.') ? 'JWT-like' : 'Non-JWT',
-        // Log the actual token for debugging (remove in production)
-        value: token
+        format: token.includes('.') ? 'JWT-like' : 'Non-JWT'
       });
 
       // Store the token regardless of format for now
@@ -257,21 +259,22 @@ export const AppProvider = ({ children }: AppProviderProps) => {
       
       toast.success("Login successful!");
     } catch (error) {
-      console.error('Login error:', {
-        error,
-        isAxiosError: axios.isAxiosError(error),
-        status: axios.isAxiosError(error) ? error.response?.status : 'N/A',
-        statusText: axios.isAxiosError(error) ? error.response?.statusText : 'N/A',
-        responseData: axios.isAxiosError(error) ? error.response?.data : 'N/A',
-        // Log the full error for debugging
-        fullError: error
-      });
-
       if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.message || 'Login failed. Please check your credentials.';
-        toast.error(message);
+        const errorMessage = error.response?.data?.message || 'Login failed. Please check your credentials.';
+        console.error('Login error (Axios):', {
+          message: errorMessage,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data
+        });
+        toast.error(errorMessage);
       } else {
-        toast.error(error instanceof Error ? error.message : 'Login failed. Please try again.');
+        const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
+        console.error('Login error:', {
+          message: errorMessage,
+          error
+        });
+        toast.error(errorMessage);
       }
       handleAuthError();
     } finally {

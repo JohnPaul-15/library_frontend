@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useApp } from "@/context/AppProvider";
 import axios from "axios";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 interface Book {
   id: number;
@@ -26,6 +27,7 @@ export default function UserDashboard() {
   const [borrowedBooks, setBorrowedBooks] = useState<BorrowedBook[]>([]);
   const [availableBooks, setAvailableBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -49,7 +51,16 @@ export default function UserDashboard() {
         setAvailableBooks(availableResponse.data.data || []);
       } catch (error) {
         console.error('Error fetching books:', error);
-        toast.error('Failed to fetch books');
+        if (axios.isAxiosError(error)) {
+          if (error.response?.status === 401) {
+            toast.error('Session expired. Please login again.');
+            router.replace('/auth');
+          } else {
+            toast.error(error.response?.data?.message || 'Failed to fetch books');
+          }
+        } else {
+          toast.error('Failed to fetch books');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -80,9 +91,9 @@ export default function UserDashboard() {
         <div className="card bg-gradient-to-br from-purple-500 to-purple-600">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-purple-100">Currently Borrowed</p>
+              <p className="text-sm text-purple-100">Total Books</p>
               <h2 className="text-3xl font-bold text-white mt-1">
-                {borrowedBooks.length}
+                {availableBooks.length + borrowedBooks.length}
               </h2>
             </div>
             <div className="p-3 bg-purple-400 bg-opacity-30 rounded-full">
@@ -93,17 +104,17 @@ export default function UserDashboard() {
           </div>
         </div>
 
-        <div className="card bg-gradient-to-br from-green-500 to-green-600">
+        <div className="card bg-gradient-to-br from-blue-500 to-blue-600">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-green-100">Available Books</p>
+              <p className="text-sm text-blue-100">Currently Borrowed</p>
               <h2 className="text-3xl font-bold text-white mt-1">
-                {availableBooks.length}
+                {borrowedBooks.length}
               </h2>
             </div>
-            <div className="p-3 bg-green-400 bg-opacity-30 rounded-full">
+            <div className="p-3 bg-blue-400 bg-opacity-30 rounded-full">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
           </div>
