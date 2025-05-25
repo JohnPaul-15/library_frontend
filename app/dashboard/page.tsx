@@ -19,6 +19,22 @@ interface DashboardStats {
   totalUsers: number;
   availableBooks: number;
   borrowedBooks: number;
+  lastUpdated?: string;
+  meta?: {
+    execution_time?: number;
+    queries?: Array<{
+      query: string;
+      bindings: string[];
+      time: number;
+    }>;
+    tables_status?: {
+      [key: string]: {
+        exists: boolean;
+        count: number;
+        columns: string[];
+      }
+    }
+  }
 }
 
 export default function Dashboard() {
@@ -38,7 +54,9 @@ export default function Dashboard() {
     totalUsers: 0,
     availableBooks: 0,
     borrowedBooks: 0,
+    lastUpdated: new Date().toLocaleTimeString()
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   //page load when authToken is available 
   useEffect(() => {
@@ -49,6 +67,7 @@ export default function Dashboard() {
 
     if (authToken) { // Only fetch if we have a token
       fetchAllBooks();
+      fetchDashboardStats();
     }
   }, [authToken, isLoading, router]);
 
@@ -60,6 +79,7 @@ export default function Dashboard() {
       totalUsers: 450,
       availableBooks: 980,
       borrowedBooks: 270,
+      lastUpdated: new Date().toLocaleTimeString()
     });
   }, []);
 
@@ -142,7 +162,7 @@ export default function Dashboard() {
 
   const handleDeleteBook = async (id: number) => {
     try {
-      const result = await Swal.fire({ 
+      const result = await Swal.fire({
         title: "Are you sure?",
         text: "You won't be able to revert this!",
         icon: "warning",
@@ -216,7 +236,118 @@ export default function Dashboard() {
     }
   };
 
-  const availabilityPercentage = (stats.availableBooks / stats.totalBooks) * 100;
+  const availabilityPercentage = stats.totalBooks > 0 
+    ? (stats.availableBooks / stats.totalBooks) * 100 
+    : 0;
+
+  const fetchDashboardStats = async () => {
+    const url = `${process.env.NEXT_PUBLIC_API_URL}/dashboard/stats`;
+    const requestId = Math.random().toString(36).substring(2, 9);
+    
+    console.log(`[${requestId}] Starting dashboard stats request`);
+
+    try {
+      setIsRefreshing(true);
+    
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-Request-ID': requestId
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      // First check if response is OK
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorDetails: { message?: string; status?: number; error?: any; debug_info?: any; responseText?: string } = {};
+        let responseText = 'Empty response';
+        try {
+           responseText = await response.text();
+           console.log(`[${requestId}] Raw error response text: ${responseText}`);
+          const errorData = JSON.parse(responseText);
+          errorDetails = {
+            message: errorData.message || `HTTP error! status: ${response.status}`,
+            error: errorData.error,
+            status: response.status,
+            debug_info: errorData.debug_info
+          };
+          console.error(`[${requestId}] Parsed error details:`, errorDetails);
+        } catch (parseError: any) {
+           console.warn(`[${requestId}] Failed to parse error response as JSON`, parseError);
+          errorDetails = {
+            message: `HTTP error! status: ${response.status}`,
+            status: response.status,
+            responseText: responseText
+          };
+        }
+        
+        const error = new Error(errorDetails.message || `HTTP error! status: ${response.status}`);
+        (error as any).status = errorDetails.status;
+        (error as any).errorDetails = errorDetails;
+        throw error;
+      }
+
+      // Parse response
+      const data = await response.json();
+    
+      // Validate response structure
+      if (!data || typeof data !== 'object' || !data.success || !data.data) {
+         console.error(`[${requestId}] Invalid response structure:`, data);
+        throw new Error(data?.message || 'Invalid response format from server');
+      }
+
+      setStats({
+        totalBooks: Number(data.data?.totalBooks ?? 0),
+        totalUsers: Number(data.data?.totalUsers ?? 0),
+        availableBooks: Number(data.data?.availableBooks ?? 0),
+        borrowedBooks: Number(data.data?.borrowedBooks ?? 0),
+        lastUpdated: new Date().toLocaleTimeString()
+      });
+       console.log(`[${requestId}] Stats updated successfully`);
+
+    } catch (error: any) {
+      let errorMessage = 'Failed to load dashboard stats';
+       console.error(`[${requestId}] Caught error:`, error);
+      
+      if (error.name === 'AbortError') {
+        errorMessage = 'Request timed out';
+        toast.error(errorMessage);
+      } else if (error.status === 401) {
+        errorMessage = 'Session expired. Please login again.';
+         toast.error(errorMessage);
+        router.push('/auth');
+      } else if (error.status === 403) {
+        errorMessage = 'Admin privileges required';
+         toast.error(errorMessage);
+        router.push('/dashboard');
+      } else if (error.errorDetails) {
+         // Handle structured error details from backend
+         errorMessage = error.errorDetails.message || errorMessage;
+         toast.error(errorMessage);
+          console.error(`[${requestId}] Backend error details:`, error.errorDetails);
+      } else {
+        // Generic error handling
+        errorMessage = error.message || errorMessage;
+        toast.error(errorMessage);
+         console.error(`[${requestId}] Generic error:`, error);
+      }
+
+      console.error(`[${requestId}] Final error message: ${errorMessage}`);
+
+    } finally {
+      setIsRefreshing(false);
+       console.log(`[${requestId}] Dashboard stats request finished`);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -230,7 +361,7 @@ export default function Dashboard() {
             </p>
             <button className="btn-primary bg-white text-[var(--primary)] hover:bg-white/90">
               Learn More
-            </button>
+                </button>
           </div>
           <div className="hidden lg:block">
             <svg className="w-48 h-48 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,7 +378,14 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[var(--text-muted)] text-sm font-medium">Total Books</p>
-              <h3 className="text-2xl font-bold mt-1">{stats.totalBooks}</h3>
+              <h3 className="text-2xl font-bold mt-1">
+                {stats.totalBooks.toLocaleString()}
+              </h3>
+              {stats.totalBooks === 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  No books in the library yet
+                </p>
+              )}
             </div>
             <div className="p-3 rounded-full bg-[var(--primary)]/10">
               <svg className="w-6 h-6 text-[var(--primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,13 +400,20 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[var(--text-muted)] text-sm font-medium">Total Users</p>
-              <h3 className="text-2xl font-bold mt-1">{stats.totalUsers}</h3>
+              <h3 className="text-2xl font-bold mt-1">
+                {stats.totalUsers.toLocaleString()}
+              </h3>
+              {stats.totalUsers === 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  No users registered yet
+                </p>
+              )}
             </div>
             <div className="p-3 rounded-full bg-[var(--secondary)]/10">
               <svg className="w-6 h-6 text-[var(--secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
-            </div>
+              </div>
           </div>
         </div>
 
@@ -277,7 +422,14 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[var(--text-muted)] text-sm font-medium">Available Books</p>
-              <h3 className="text-2xl font-bold mt-1">{stats.availableBooks}</h3>
+              <h3 className="text-2xl font-bold mt-1">
+                {stats.availableBooks.toLocaleString()}
+              </h3>
+              {stats.availableBooks === 0 && stats.totalBooks > 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  All books are currently borrowed
+                </p>
+              )}
             </div>
             <div className="p-3 rounded-full bg-green-500/10">
               <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -292,7 +444,14 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[var(--text-muted)] text-sm font-medium">Borrowed Books</p>
-              <h3 className="text-2xl font-bold mt-1">{stats.borrowedBooks}</h3>
+              <h3 className="text-2xl font-bold mt-1">
+                {stats.borrowedBooks.toLocaleString()}
+              </h3>
+              {stats.borrowedBooks === 0 && stats.totalBooks > 0 && (
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  No books are currently borrowed
+                </p>
+              )}
             </div>
             <div className="p-3 rounded-full bg-blue-500/10">
               <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -318,9 +477,41 @@ export default function Dashboard() {
             />
           </div>
           <p className="text-sm text-[var(--text-muted)] mt-2">
-            {stats.availableBooks} out of {stats.totalBooks} books are currently available
+            {stats.totalBooks === 0 ? (
+              'No books in the library yet'
+            ) : (
+              `${stats.availableBooks} out of ${stats.totalBooks} books are currently available`
+            )}
           </p>
         </div>
+      </div>
+
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <button 
+          onClick={fetchDashboardStats}
+          disabled={isRefreshing}
+          className="flex items-center gap-2 text-sm text-[var(--primary)] hover:text-[var(--primary-dark)] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg 
+            className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+            />
+          </svg>
+          {isRefreshing ? 'Refreshing...' : 'Refresh Stats'}
+        </button>
+      </div>
+
+      <div className="text-xs text-[var(--text-muted)] text-right">
+        Last updated: {stats.lastUpdated}
       </div>
     </div>
   );

@@ -15,6 +15,8 @@ interface BorrowedBook {
   borrowed_at: string;
   return_date: string;
   status: 'borrowed';
+  borrowed_by: string;
+  borrower_email: string;
 }
 
 export default function BorrowedBooksPage() {
@@ -26,19 +28,36 @@ export default function BorrowedBooksPage() {
 
   useEffect(() => {
     const initializePage = async () => {
+      console.log('Initializing borrowed books page:', {
+        isLoading,
+        hasAuthToken: !!authToken,
+        tokenLength: authToken?.length,
+        hasUser: !!user,
+        userRole: user?.role,
+        isAdmin: user?.role === 'admin'
+      });
+
       if (isLoading) {
+        console.log('Still loading app state, waiting...');
         return;
       }
 
       if (!authToken) {
-        console.log('No auth token, redirecting to login');
+        console.log('No auth token found, redirecting to login');
         router.replace('/auth');
         return;
       }
 
       if (!user) {
-        console.log('No user data, redirecting to login');
+        console.log('No user data found, redirecting to login');
         router.replace('/auth');
+        return;
+      }
+
+      if (user.role !== 'admin') {
+        console.log('User is not an admin, redirecting to dashboard');
+        toast.error('Access denied. Admin privileges required.');
+        router.replace('/dashboard');
         return;
       }
 
@@ -50,72 +69,118 @@ export default function BorrowedBooksPage() {
   }, [authToken, isLoading, user, router]);
 
   const fetchBorrowedBooks = async () => {
-    console.log('Fetching borrowed books...', {
-      hasToken: !!authToken,
-      tokenLength: authToken?.length,
-      tokenPreview: authToken ? `${authToken.substring(0, 20)}...` : null,
-      apiUrl: `${process.env.NEXT_PUBLIC_API_URL}/books/borrowed`
-    });
+    // Define dummy data for testing
+    const dummyBorrowedBooks: BorrowedBook[] = [
+      {
+        id: 101,
+        title: "The Hitchhiker's Guide to the Galaxy",
+        author: "Douglas Adams",
+        isbn: "978-0345391803",
+        borrowed_at: "2023-10-01T10:00:00Z",
+        return_date: "2023-11-01T10:00:00Z", // Overdue
+        status: 'borrowed',
+        borrowed_by: "Arthur Dent",
+        borrower_email: "arthur.dent@example.com",
+      },
+      {
+        id: 102,
+        title: "Pride and Prejudice",
+        author: "Jane Austen",
+        isbn: "978-0141439518",
+        borrowed_at: "2024-05-10T14:30:00Z",
+        return_date: "2024-06-10T14:30:00Z", // Due soon
+        status: 'borrowed',
+        borrowed_by: "Elizabeth Bennet",
+        borrower_email: "elizabeth.b@example.com",
+      },
+      {
+        id: 103,
+        title: "1984",
+        author: "George Orwell",
+        isbn: "978-0451524935",
+        borrowed_at: "2024-04-20T09:00:00Z",
+        return_date: "2024-05-20T09:00:00Z", // Overdue
+        status: 'borrowed',
+        borrowed_by: "Winston Smith",
+        borrower_email: "winston.s@example.com",
+      },
+      {
+        id: 104,
+        title: "To Kill a Mockingbird",
+        author: "Harper Lee",
+        isbn: "978-0061120084",
+        borrowed_at: "2024-06-01T11:15:00Z",
+        return_date: "2024-07-01T11:15:00Z", // Not due yet
+        status: 'borrowed',
+        borrowed_by: "Scout Finch",
+        borrower_email: "scout.f@example.com",
+      },
+      {
+        id: 105,
+        title: "The Great Gatsby",
+        author: "F. Scott Fitzgerald",
+        isbn: "978-0743273565",
+        borrowed_at: "2024-05-25T16:00:00Z",
+        return_date: "2024-06-25T16:00:00Z", // Due soon
+        status: 'borrowed',
+        borrowed_by: "Jay Gatsby",
+        borrower_email: "jay.g@example.com",
+      },
+    ];
 
-    try {
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/books/borrowed`,
-        {
-          headers: { 
-            Authorization: `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        }
-      );
+    console.log('Using dummy borrowed books data.');
+    setBorrowedBooks(dummyBorrowedBooks);
 
-      console.log('Borrowed books response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        headers: response.headers
-      });
+    // Keep the original API call commented out below for easy switching back:
+    // try {
+    //   const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/books/all-borrowed`;
+    //   console.log('Fetching from:', apiUrl);
 
-      if (response.data.success && Array.isArray(response.data.data)) {
-        setBorrowedBooks(response.data.data);
-      } else if (response.data.message === "Record not found.") {
-        setBorrowedBooks([]);
-      } else {
-        console.warn('Unexpected response format:', response.data);
-        setBorrowedBooks([]);
-      }
-    } catch (error) {
-      console.error('Error fetching borrowed books:', {
-        error,
-        isAxiosError: axios.isAxiosError(error),
-        status: axios.isAxiosError(error) ? error.response?.status : 'N/A',
-        statusText: axios.isAxiosError(error) ? error.response?.statusText : 'N/A',
-        responseData: axios.isAxiosError(error) ? error.response?.data : 'N/A',
-        headers: axios.isAxiosError(error) ? error.response?.headers : 'N/A'
-      });
-      
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          console.log('Unauthorized access, redirecting to login');
-          router.replace('/auth');
-          return;
-        }
+    //   const response = await axios.get(apiUrl, {
+    //     headers: { 
+    //       Authorization: `Bearer ${authToken}`,
+    //       'Accept': 'application/json'
+    //     },
+    //     validateStatus: (status) => status < 500
+    //   });
+
+    //   console.log('API Response:', {
+    //     status: response.status,
+    //     data: response.data
+    //   });
+
+    //   if (response.status === 200 && response.data.success) {
+    //     const transformedData = response.data.data.map((book: any) => ({
+    //       id: book.id,
+    //       title: book.title,
+    //       author: book.author,
+    //       isbn: book.isbn,
+    //       status: 'borrowed',
+    //       borrowed_at: book.borrowed_at,
+    //       return_date: book.return_date,
+    //       borrowed_by: book.borrowed_by,
+    //       borrower_email: book.borrower_email
+    //     }));
         
-        if (error.response?.status === 404) {
-          console.log('No borrowed books found');
-          setBorrowedBooks([]);
-          return;
-        }
-        
-        toast.error(error.response?.data?.message || 'Failed to fetch borrowed books');
-      } else {
-        toast.error('An unexpected error occurred');
-      }
-      
-      setBorrowedBooks([]);
-    } finally {
-      setIsPageLoading(false);
-    }
+    //     setBorrowedBooks(transformedData);
+    //   } else if (response.status === 401) {
+    //     router.replace('/auth');
+    //   } else if (response.status === 403) {
+    //     toast.error('Admin access required');
+    //     router.replace('/dashboard');
+    //   } else {
+    //     toast.error(response.data?.message || 'Failed to fetch books');
+    //   }
+    // } catch (error: any) {
+    //   console.error('Full error:', error);
+    //   if (error.response) {
+    //     toast.error(error.response.data?.message || 'API request failed');
+    //   } else if (error.request) {
+    //     toast.error('No response from server');
+    //   } else {
+    //     toast.error('Request failed: ' + error.message);
+    //   }
+    // }
   };
 
   const handleReturn = async (bookId: number) => {
@@ -170,7 +235,7 @@ export default function BorrowedBooksPage() {
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
         <p className="text-[var(--text-muted)]">
-          {isLoading ? 'Loading application...' : 'Fetching your borrowed books...'}
+          {isLoading ? 'Loading application...' : 'Loading borrowed books...'}
         </p>
       </div>
     );
@@ -203,9 +268,10 @@ export default function BorrowedBooksPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Title</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Author</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">ISBN</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Borrowed By</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Borrower Email</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Borrowed Date</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Return Date</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -218,6 +284,8 @@ export default function BorrowedBooksPage() {
                       <td className="px-4 py-3 text-white">{book.title}</td>
                       <td className="px-4 py-3 text-white">{book.author}</td>
                       <td className="px-4 py-3 text-white">{book.isbn}</td>
+                      <td className="px-4 py-3 text-white">{book.borrowed_by}</td>
+                      <td className="px-4 py-3 text-white">{book.borrower_email}</td>
                       <td className="px-4 py-3 text-white">
                         {new Date(book.borrowed_at).toLocaleDateString()}
                       </td>
@@ -233,14 +301,6 @@ export default function BorrowedBooksPage() {
                           {isOverdue && ' (Overdue)'}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleReturn(book.id)}
-                          className="px-4 py-2 bg-[var(--danger)] text-white rounded-lg hover:bg-[var(--danger-hover)] transition-colors"
-                        >
-                          Return
-                        </button>
-                      </td>
                     </tr>
                   );
                 })}
@@ -250,9 +310,9 @@ export default function BorrowedBooksPage() {
         ) : (
           <div className="text-center py-8">
             <p className="text-[var(--text-muted)]">
-              {searchQuery 
-                ? 'No books match your search criteria'
-                : 'You have no borrowed books at the moment'}
+              {searchQuery
+                ? "No borrowed books found matching your search."
+                : "No books are currently borrowed."}
             </p>
           </div>
         )}

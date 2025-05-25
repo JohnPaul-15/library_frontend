@@ -12,7 +12,9 @@ interface Book {
   title: string;
   author: string;
   publisher: string;
-  availability: string;
+  total_copies: number;
+  available_copies: number;
+  status: 'Available' | 'Borrowed' | 'Not Available';
 }
 
 export default function BooksManagement() {
@@ -24,7 +26,9 @@ export default function BooksManagement() {
     title: '',
     author: '',
     publisher: '',
-    availability: 'Available',
+    total_copies: 1,
+    available_copies: 1,
+    status: 'Available',
   });
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -43,9 +47,18 @@ export default function BooksManagement() {
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/books`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
+      
       const booksData = Array.isArray(response.data) ? response.data : 
                        response.data.data || response.data.books || [];
-      setBooks(booksData);
+      
+      // Ensure all books have total_copies
+      const normalizedBooks = booksData.map((book: any) => ({
+        ...book,
+        total_copies: book.total_copies || 1,
+        available_copies: book.available_copies || book.total_copies || 1
+      }));
+      
+      setBooks(normalizedBooks);
     } catch (error) {
       console.error('Error fetching books:', error);
       toast.error('Failed to fetch books');
@@ -53,32 +66,63 @@ export default function BooksManagement() {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
+    const { name, value } = e.target;
+    console.log('Input change:', { name, value, type: typeof value }); // Debug log
+    
+    let processedValue = value;
+    
+    if (name === 'total_copies') {
+      const numValue = parseInt(value) || 1;
+      processedValue = Math.max(1, numValue).toString();
+      console.log('Processed total_copies:', { original: value, processed: processedValue }); // Debug log
+    }
+
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [name]: processedValue,
+      };
+      console.log('New form data:', newData); // Debug log
+      return newData;
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form data before submission:', formData); // Debug log
+    
     try {
+      const payload = {
+        title: formData.title,
+        author: formData.author,
+        publisher: formData.publisher,
+        total_copies: Number(formData.total_copies),
+        available_copies: Number(formData.total_copies),
+      };
+
+      console.log('Submitting with payload:', payload); // Debug log
+
       if (isEditing && formData.id) {
-        await axios.put(
+        const response = await axios.put(
           `${process.env.NEXT_PUBLIC_API_URL}/books/${formData.id}`,
-          formData,
+          payload,
           { headers: { Authorization: `Bearer ${authToken}` } }
         );
+        console.log('Update response:', response.data); // Debug log
         toast.success('Book updated successfully');
       } else {
-        await axios.post(
+        const response = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL}/books`,
-          formData,
+          payload,
           { headers: { Authorization: `Bearer ${authToken}` } }
         );
+        console.log('Create response:', response.data); // Debug log
         toast.success('Book added successfully');
       }
+      
       resetForm();
-      fetchBooks();
+      await fetchBooks(); // Wait for fetch to complete
+      console.log('Books after fetch:', books); // Debug log
     } catch (error) {
       console.error('Error saving book:', error);
       toast.error('Failed to save book');
@@ -87,7 +131,15 @@ export default function BooksManagement() {
 
   const handleEdit = (book: Book) => {
     setIsEditing(true);
-    setFormData(book);
+    setFormData({
+      title: book.title,
+      author: book.author,
+      publisher: book.publisher,
+      total_copies: book.total_copies || 1,
+      available_copies: book.available_copies || book.total_copies || 1,
+      status: book.status || 'Available',
+      id: book.id
+    });
   };
 
   const handleDelete = async (id: number) => {
@@ -121,7 +173,9 @@ export default function BooksManagement() {
       title: '',
       author: '',
       publisher: '',
-      availability: 'Available',
+      total_copies: 1,
+      available_copies: 1,
+      status: 'Available',
     });
   };
 
@@ -214,17 +268,37 @@ export default function BooksManagement() {
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">
-              Availability
+              Total Copies
+            </label>
+            <input
+              type="number"
+              name="total_copies"
+              min="1"
+              value={formData.total_copies}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 1;
+                setFormData({
+                  ...formData,
+                  total_copies: value > 0 ? value : 1
+                });
+              }}
+              className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-white placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">
+              Status
             </label>
             <select
-              name="availability"
-              value={formData.availability}
+              name="status"
+              value={formData.status}
               onChange={handleInputChange}
               className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border-color)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent"
             >
               <option value="Available">Available</option>
               <option value="Borrowed">Borrowed</option>
-              <option value="Reserved">Reserved</option>
+              <option value="Not Available">Not Available</option>
             </select>
           </div>
           <div className="flex gap-3">
@@ -256,49 +330,70 @@ export default function BooksManagement() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Title</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Author</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Publisher</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Availability</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Total Copies</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Available</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Status</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-[var(--text-muted)]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-color)]">
-              {filteredBooks.map((book) => (
-                <tr key={book.id} className="hover:bg-[var(--card-bg)]">
-                  <td className="px-4 py-3 text-white">{book.title}</td>
-                  <td className="px-4 py-3 text-white">{book.author}</td>
-                  <td className="px-4 py-3 text-white">{book.publisher}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      book.availability === 'Available'
-                        ? 'bg-green-100 text-green-800'
-                        : book.availability === 'Borrowed'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {book.availability}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(book)}
-                        className="p-1 text-[var(--primary)] hover:text-[var(--primary-hover)]"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => book.id && handleDelete(book.id)}
-                        className="p-1 text-red-500 hover:text-red-600"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filteredBooks.map((book) => {
+                const availablePercentage = (book.available_copies / book.total_copies) * 100;
+                const isAvailable = book.available_copies > 0;
+                
+                return (
+                  <tr key={book.id} className="hover:bg-[var(--card-bg)]">
+                    <td className="px-4 py-3 text-white">{book.title}</td>
+                    <td className="px-4 py-3 text-white">{book.author}</td>
+                    <td className="px-4 py-3 text-white">{book.publisher}</td>
+                    <td className="px-4 py-3 text-white">{book.total_copies}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        availablePercentage >= 50 
+                          ? 'bg-green-100 text-green-800'
+                          : availablePercentage >= 25
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {book.available_copies} ({Math.min(100, availablePercentage).toFixed(0)}%)
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        book.status === 'Available'
+                          ? 'bg-green-100 text-green-800'
+                          : book.status === 'Borrowed'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {book.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(book)}
+                          className="p-1 text-[var(--primary)] hover:text-[var(--primary-hover)]"
+                          title="Edit book"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => book.id && handleDelete(book.id)}
+                          className="p-1 text-red-500 hover:text-red-600"
+                          title="Delete book"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
