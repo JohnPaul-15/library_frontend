@@ -24,6 +24,9 @@ export default function BooksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<'all' | 'available' | 'borrowed'>('all');
+  const [totalBooks, setTotalBooks] = useState(0);
+  const [borrowedBooksCount, setBorrowedBooksCount] = useState(0);
+  const [availableBooksCount, setAvailableBooksCount] = useState(0);
 
   useEffect(() => {
     fetchBooks();
@@ -31,18 +34,53 @@ export default function BooksPage() {
 
   const fetchBooks = async () => {
     try {
+      setIsLoading(true);
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/books`,
         {
-          headers: { Authorization: `Bearer ${authToken}` }
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
         }
       );
       setBooks(response.data.data || []);
     } catch (error) {
       console.error('Error fetching books:', error);
-      toast.error('Failed to fetch books');
+      toast.error('Failed to load books');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      const [booksResponse, borrowedResponse] = await Promise.all([
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/books`, {
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Accept': 'application/json'
+          }
+        }),
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/user/borrowed`, {
+          headers: { 
+            Authorization: `Bearer ${authToken}`,
+            'Accept': 'application/json'
+          }
+        })
+      ]);
+
+      const totalBooks = booksResponse.data.data.length;
+      const borrowedBooks = borrowedResponse.data.data.length;
+      const availableBooks = totalBooks - borrowedBooks;
+
+      setTotalBooks(totalBooks);
+      setBorrowedBooksCount(borrowedBooks);
+      setAvailableBooksCount(availableBooks);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
     }
   };
 
@@ -64,7 +102,12 @@ export default function BooksPage() {
         confirmButtonText: 'Borrow',
         cancelButtonText: 'Cancel',
         confirmButtonColor: 'var(--primary)',
-        cancelButtonColor: 'var(--danger)',
+        cancelButtonColor: '#6B7280',
+        buttonsStyling: true,
+        customClass: {
+          cancelButton: 'swal2-cancel-button bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors',
+          confirmButton: 'swal2-confirm-button'
+        },
         preConfirm: () => {
           const copies = document.getElementById('copies') as HTMLInputElement;
           const returnDate = document.getElementById('return-date') as HTMLInputElement;
@@ -125,7 +168,7 @@ export default function BooksPage() {
   const handleReturn = async (bookId: number) => {
     try {
       const result = await Swal.fire({
-        title: 'Confirm Return',
+        title: 'Return Book',
         text: 'Are you sure you want to return this book?',
         icon: 'question',
         showCancelButton: true,
@@ -133,6 +176,10 @@ export default function BooksPage() {
         cancelButtonText: 'No, cancel',
         confirmButtonColor: 'var(--primary)',
         cancelButtonColor: 'var(--danger)',
+        buttonsStyling: true,
+        customClass: {
+          cancelButton: 'swal2-cancel-button'
+        }
       });
 
       if (result.isConfirmed) {
@@ -150,7 +197,11 @@ export default function BooksPage() {
 
         if (response.data.success) {
           toast.success('Book returned successfully!');
-          fetchBooks(); // Refresh the book list
+          // Refresh both the books list and dashboard data
+          await Promise.all([
+            fetchBooks(),
+            fetchDashboardData()
+          ]);
         }
       }
     } catch (error: any) {

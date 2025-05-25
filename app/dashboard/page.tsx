@@ -318,7 +318,7 @@ export default function Dashboard() {
       const data = await response.json();
     
       if (!data || typeof data !== 'object' || !data.success || !data.data) {
-        console.error(`[${requestId}] Invalid response structure:`, data);
+         console.error(`[${requestId}] Invalid response structure:`, data);
         throw new Error(data?.message || 'Invalid response format from server');
       }
 
@@ -330,7 +330,7 @@ export default function Dashboard() {
         lastUpdated: new Date().toLocaleTimeString()
       });
       
-      console.log(`[${requestId}] Stats updated successfully`);
+       console.log(`[${requestId}] Stats updated successfully`);
 
     } catch (error: any) {
       console.error(`[${requestId}] Error fetching dashboard stats:`, {
@@ -339,7 +339,7 @@ export default function Dashboard() {
         status: error.status,
         userRole: user?.role
       });
-
+      
       if (error.name === 'AbortError') {
         toast.error('Request timed out');
       } else if (error.message.includes('Admin privileges required')) {
@@ -350,7 +350,7 @@ export default function Dashboard() {
       }
     } finally {
       setIsRefreshing(false);
-      console.log(`[${requestId}] Dashboard stats request finished`);
+       console.log(`[${requestId}] Dashboard stats request finished`);
     }
   };
 

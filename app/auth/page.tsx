@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useApp } from "@/context/AppProvider";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import axios from "axios";
 
 interface FormData {
   name?: string;
@@ -30,7 +31,7 @@ const Auth: React.FC = () => {
   const [showAdminFields, setShowAdminFields] = useState(false);
 
   const router = useRouter();
-  const { login, register, authToken, isLoading } = useApp();
+  const { login, register, authToken, isLoading, setAuthToken, setUser } = useApp();
 
   // Admin registration code - this should be stored securely in environment variables
   const ADMIN_REGISTRATION_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || "ADMIN123";
@@ -55,12 +56,67 @@ const Auth: React.FC = () => {
     });
   };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/login`,
+        formData
+      );
+
+      if (response.data.token) {
+        setAuthToken(response.data.token);
+        setUser(response.data.user);
+        toast.success('Login successful! Welcome back.');
+        router.push('/dashboard');
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      if (error.response?.status === 422) {
+        toast.error(error.response.data.message || 'Invalid credentials');
+      } else {
+        toast.error('Failed to login. Please try again.');
+      }
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/register`,
+        formData
+      );
+
+      if (response.data.token) {
+        setAuthToken(response.data.token);
+        setUser(response.data.user);
+        toast.success('Registration successful! Welcome to the library.');
+        router.push('/dashboard');
+      }
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      if (error.response?.status === 422) {
+        const errors = error.response.data.errors;
+        if (errors) {
+          Object.values(errors).forEach((error: any) => {
+            toast.error(error[0]);
+          });
+        } else {
+          toast.error(error.response.data.message || 'Registration failed');
+        }
+      } else {
+        toast.error('Failed to register. Please try again.');
+      }
+    }
+  };
+
   const handleFormSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     
     try {
       if (isLogin) {
-        await login(formData.email, formData.password);
+        await handleLogin(event);
       } else {
         // Validate registration data
         if (!formData.name || !formData.password_confirmation) {
@@ -79,14 +135,7 @@ const Auth: React.FC = () => {
           }
         }
 
-        await register(
-          formData.name,
-          formData.email,
-          formData.password,
-          formData.password_confirmation,
-          formData.role,
-          formData.adminCode
-        );
+        await handleRegister(event);
       }
     } catch (error) {
       console.error(`Authentication Failed:`, error);

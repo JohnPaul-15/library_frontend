@@ -35,6 +35,8 @@ interface AppProviderType {
   logout: () => void;
   fetchUserProfile: () => Promise<void>;
   checkAdminAccess: () => boolean;
+  setAuthToken: (token: string | null) => void;
+  setUser: (user: User | null) => void;
 }
 
 const AppContext = createContext<AppProviderType | undefined>(undefined);
@@ -441,7 +443,9 @@ export const AppProvider = ({ children }: AppProviderProps) => {
         user,
         isAdmin,
         fetchUserProfile,
-        checkAdminAccess
+        checkAdminAccess,
+        setAuthToken,
+        setUser
       }}
     >
       {children}
