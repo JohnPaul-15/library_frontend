@@ -6,6 +6,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import Loading from '@/components/Loading';
+import Link from "next/link";
 
 interface Book {
   id: number;
@@ -184,12 +185,19 @@ export default function UserDashboard() {
       <div className="card">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Available Books</h2>
-          <a
-            href="/user-dashboard/books"
-            className="text-[var(--primary)] hover:text-[var(--primary-hover)]"
+          <button
+            onClick={() => {
+              if (!authToken) {
+                toast.error('Please log in to view books');
+                router.push('/auth');
+                return;
+              }
+              router.push('/user-dashboard/books');
+            }}
+            className="text-[var(--primary)] hover:text-[var(--primary-hover)] hover:cursor-pointer"
           >
             View All
-          </a>
+          </button>
         </div>
         {availableBooks.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

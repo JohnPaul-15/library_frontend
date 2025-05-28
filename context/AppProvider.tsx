@@ -392,37 +392,56 @@ export const AppProvider = ({ children }: AppProviderProps) => {
 
   // Initialize auth state
   useEffect(() => {
-    console.log('Initializing auth state...');
-    const token = Cookies.get("authToken");
+    const initializeAuth = async () => {
+      console.log('Initializing auth state...');
+      const token = Cookies.get("authToken");
 
-    if (token) {
-      console.log('Found token in cookies:', {
-        length: token.length,
-        preview: token.substring(0, 20) + '...'
-      });
+      if (token) {
+        console.log('Found token in cookies:', {
+          length: token.length,
+          preview: token.substring(0, 20) + '...'
+        });
 
-      if (validateToken(token)) {
-        console.log('Valid token found, setting auth state');
-        setAuthToken(token);
-        // Fetch profile immediately
-        fetchUserProfile();
+        if (validateToken(token)) {
+          console.log('Valid token found, setting auth state');
+          setAuthToken(token);
+          try {
+            // Fetch profile immediately
+            await fetchUserProfile();
+          } catch (error) {
+            console.error('Failed to fetch user profile during initialization:', error);
+            // If profile fetch fails, clear the invalid token
+            handleAuthError();
+          }
+        } else {
+          console.error('Invalid token found in cookies');
+          handleAuthError();
+        }
       } else {
-        console.error('Invalid token found in cookies');
-        handleAuthError();
+        console.log('No token found in cookies, redirecting to auth');
+        setIsLoading(false);
+        router.replace("/auth");
       }
-    } else {
-      console.log('No token found in cookies, redirecting to auth');
-      setIsLoading(false);
-      router.replace("/auth");
-    }
+    };
+
+    initializeAuth();
   }, []); // Empty dependency array for initialization
 
   // Retry profile fetch if we have a token but no user
   useEffect(() => {
-    if (authToken && !user && !isProfileLoading && !isLoading) {
-      console.log('Auth token exists but no user data, retrying profile fetch');
-      fetchUserProfile();
-    }
+    const retryProfileFetch = async () => {
+      if (authToken && !user && !isProfileLoading && !isLoading) {
+        console.log('Auth token exists but no user data, retrying profile fetch');
+        try {
+          await fetchUserProfile();
+        } catch (error) {
+          console.error('Failed to fetch user profile during retry:', error);
+          handleAuthError();
+        }
+      }
+    };
+
+    retryProfileFetch();
   }, [authToken, user, isProfileLoading, isLoading]);
 
   // Prevent rendering children while loading

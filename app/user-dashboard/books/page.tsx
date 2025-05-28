@@ -34,6 +34,12 @@ export default function BooksPage() {
 
   const fetchBooks = async () => {
     try {
+      if (!authToken) {
+        console.error('No auth token available');
+        toast.error('Authentication required. Please log in again.');
+        return;
+      }
+
       setIsLoading(true);
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/books`,
@@ -46,9 +52,13 @@ export default function BooksPage() {
         }
       );
       setBooks(response.data.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching books:', error);
-      toast.error('Failed to load books');
+      if (error.response?.status === 401) {
+        toast.error('Session expired. Please log in again.');
+      } else {
+        toast.error('Failed to load books');
+      }
     } finally {
       setIsLoading(false);
     }
